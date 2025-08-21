@@ -1,10 +1,24 @@
-# server.py
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import yfinance as yf
 
 app = FastAPI()
 
-# ✅ Correct Yahoo Finance symbols mapping
+# Allow Lovable and Vercel domains to access the API
+origins = [
+    "https://preview--bloom-bar.lovable.app",
+    "https://tradediary-lilac.vercel.app"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Define your indices
 INDICES = {
     '^NSEBANK': 'BANK NIFTY',
     '^NSEI': 'NIFTY 50',
@@ -14,43 +28,38 @@ INDICES = {
 }
 
 def fetch_live_data():
-    results = {}
+    result = {}
     for symbol, name in INDICES.items():
         try:
             ticker = yf.Ticker(symbol)
-            info = ticker.history(period="1d", interval="1m")
-
-            if not info.empty:
-                latest = info.iloc[-1]
-                prev_close = ticker.info.get("previousClose", None)
-
-                price = round(float(latest["Close"]), 2)
-                volume = int(latest["Volume"])
-                change_pct = None
-
-                if prev_close:
-                    change_pct = round(((price - prev_close) / prev_close) * 100, 2)
-
-                results[name] = {
+            data = ticker.history(period="1d")
+            if not data.empty:
+                last_row = data.iloc[-1]
+                prev_close = last_row['Close']
+                # Compute change and percent
+                open_price = last_row['Open']
+                percent_change = ((prev_close - open_price) / open_price) * 100 if open_price != 0 else 0
+                result[name] = {
                     "symbol": symbol,
-                    "price": price,
-                    "volume": volume,
-                    "percent_change": change_pct
+                    "price": round(prev_close, 2),
+                    "volume": int(last_row['Volume']),
+                    "percent_change": round(percent_change, 2)
                 }
             else:
-                results[name] = {
+                result[name] = {
                     "symbol": symbol,
-                    "price": None,
-                    "volume": None,
-                    "percent_change": None
+                    "price": 0,
+                    "volume": 0,
+                    "percent_change": 0
                 }
         except Exception as e:
-            results[name] = {"error": str(e)}
-    return results
-
-@app.get("/")
-def read_root():
-    return {"message": "Welcome to Market Data API. Use /indices to fetch data."}
+            result[name] = {
+                "symbol": symbol,
+                "price": 0,
+                "volume": 0,
+                "percent_change": 0
+            }
+    return result
 
 @app.get("/indices")
 def get_indices():
