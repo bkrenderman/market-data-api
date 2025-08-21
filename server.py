@@ -1,58 +1,57 @@
 # server.py
-from fastapi import FastAPI, Query
+from fastapi import FastAPI
 import yfinance as yf
 
 app = FastAPI()
 
-# Configure indices here (you can add/remove as needed)
+# ✅ Correct Yahoo Finance symbols mapping
 INDICES = {
-    "NIFTY50": "^NSEI",
-    "BANKNIFTY": "^NSEBANK",
-    "SENSEX": "^BSESN"
+    '^NSEBANK': 'BANK NIFTY',
+    '^NSEI': 'NIFTY 50',
+    '^BSESN': 'SENSEX',
+    'NIFTY_MID_SELECT.NS': 'MIDCAP SELECT',
+    '^CNXSC': 'SMALLCAP INDEX'
 }
 
+def fetch_live_data():
+    results = {}
+    for symbol, name in INDICES.items():
+        try:
+            ticker = yf.Ticker(symbol)
+            info = ticker.history(period="1d", interval="1m")
+
+            if not info.empty:
+                latest = info.iloc[-1]
+                prev_close = ticker.info.get("previousClose", None)
+
+                price = round(float(latest["Close"]), 2)
+                volume = int(latest["Volume"])
+                change_pct = None
+
+                if prev_close:
+                    change_pct = round(((price - prev_close) / prev_close) * 100, 2)
+
+                results[name] = {
+                    "symbol": symbol,
+                    "price": price,
+                    "volume": volume,
+                    "percent_change": change_pct
+                }
+            else:
+                results[name] = {
+                    "symbol": symbol,
+                    "price": None,
+                    "volume": None,
+                    "percent_change": None
+                }
+        except Exception as e:
+            results[name] = {"error": str(e)}
+    return results
+
 @app.get("/")
-def home():
-    return {"message": "Market Data API is running 🚀"}
-
-@app.get("/price")
-def get_price(symbol: str = Query(..., description="Yahoo Finance symbol e.g. ^NSEI")):
-    ticker = yf.Ticker(symbol)
-    hist = ticker.history(period="1d", interval="1m")
-
-    if hist.empty:
-        return {"error": f"No data found for {symbol}"}
-
-    latest = hist.iloc[-1]
-    prev_close = ticker.history(period="2d").iloc[0]["Close"]
-    change_percent = ((latest["Close"] - prev_close) / prev_close) * 100
-
-    return {
-        "symbol": symbol,
-        "price": float(latest["Close"]),
-        "volume": int(latest["Volume"]),
-        "change_percent": round(change_percent, 2)
-    }
+def read_root():
+    return {"message": "Welcome to Market Data API. Use /indices to fetch data."}
 
 @app.get("/indices")
-def get_all_indices():
-    results = {}
-    for name, symbol in INDICES.items():
-        ticker = yf.Ticker(symbol)
-        hist = ticker.history(period="1d", interval="1m")
-
-        if hist.empty:
-            results[name] = {"error": f"No data for {symbol}"}
-            continue
-
-        latest = hist.iloc[-1]
-        prev_close = ticker.history(period="2d").iloc[0]["Close"]
-        change_percent = ((latest["Close"] - prev_close) / prev_close) * 100
-
-        results[name] = {
-            "symbol": symbol,
-            "price": float(latest["Close"]),
-            "volume": int(latest["Volume"]),
-            "change_percent": round(change_percent, 2)
-        }
-    return results
+def get_indices():
+    return fetch_live_data()
