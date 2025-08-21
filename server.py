@@ -3,45 +3,58 @@ import yfinance as yf
 
 app = FastAPI()
 
-# Root endpoint
-@app.get("/")
-def home():
-    return {"message": "Market Data API is live 🎉"}
-
-# Function to fetch live price
-def get_price(symbol):
+def fetch_data(symbol: str):
     ticker = yf.Ticker(symbol)
     data = ticker.history(period="1d", interval="1m")
+
     if data.empty:
-        return {"error": f"No data for {symbol}"}
-    last_row = data.iloc[-1]
+        return {"error": f"No data found for {symbol}"}
+
+    current_price = data["Close"].iloc[-1]
+    volume = int(data["Volume"].iloc[-1])
+    prev_close = ticker.info.get("previousClose", None)
+
+    percent_change = None
+    if prev_close:
+        percent_change = round(((current_price - prev_close) / prev_close) * 100, 2)
+
     return {
         "symbol": symbol,
-        "price": float(last_row["Close"]),
-        "volume": int(last_row["Volume"])
+        "price": float(current_price),
+        "volume": volume,
+        "previous_close": prev_close,
+        "percent_change": percent_change
     }
 
-# Nifty50 endpoint
+@app.get("/")
+def read_root():
+    return {"message": "Market Data API is running"}
+
+@app.get("/stock/{symbol}")
+def get_stock_data(symbol: str):
+    return fetch_data(symbol)
+
+# Index endpoints
 @app.get("/nifty")
-def nifty():
-    return get_price("^NSEI")
+def get_nifty():
+    return fetch_data("^NSEI")
 
-# Bank Nifty endpoint
 @app.get("/banknifty")
-def banknifty():
-    return get_price("^NSEBANK")
+def get_banknifty():
+    return fetch_data("^NSEBANK")
 
-# Sensex endpoint
 @app.get("/sensex")
-def sensex():
-    return get_price("^BSESN")
+def get_sensex():
+    return fetch_data("^BSESN")
 
-# Midcap endpoint
-@app.get("/midcap")
-def midcap():
-    return get_price("^NSEMDCP50")
+@app.get("/nasdaq")
+def get_nasdaq():
+    return fetch_data("^IXIC")
 
-# Smallcap endpoint
-@app.get("/smallcap")
-def smallcap():
-    return get_price("^NSESCAP")
+@app.get("/dowjones")
+def get_dowjones():
+    return fetch_data("^DJI")
+
+@app.get("/sp500")
+def get_sp500():
+    return fetch_data("^GSPC")
