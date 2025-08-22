@@ -15,8 +15,8 @@ app.add_middleware(
 
 # Indices to fetch
 INDICES = {
-    '^NSEBANK': 'BANK NIFTY',
     '^NSEI': 'NIFTY 50',
+    '^NSEBANK': 'BANK NIFTY',
     '^BSESN': 'SENSEX',
     'NIFTY_MID_SELECT.NS': 'MIDCAP SELECT',
     '^CNXSC': 'SMALLCAP INDEX'
@@ -49,3 +49,4 @@ def get_indices():
                 "percent_change": 0
             }
     return result
+
